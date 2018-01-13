@@ -4,6 +4,7 @@ from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+cuda = torch.cuda.is_available()
 
 import matplotlib 
 matplotlib.use('Agg')
@@ -35,6 +36,8 @@ class Net(nn.Module):
             
     def init_hidden(self):
         # Variable(num_layers*num_directions, minibatch_size, hidden_dim)
+        if cuda:
+            return Variable(torch.randn(2, 1, self.hidden_dim // 2).cuda())
         return Variable(torch.randn(2, 1, self.hidden_dim // 2))
     
     def forward(self, d, q):
@@ -44,8 +47,12 @@ class Net(nn.Module):
         q_idx = [self.word_dict.get(qw, self.IDX_UNK) for qw in q_words]
         d_emb = [self.embeddings[i] for i in d_idx] # !bug: max_words not in word_dict
         q_emb = [self.embeddings[i] for i in q_idx]
-        d_emb = Variable(torch.FloatTensor(d_emb), requires_grad=True)
-        q_emb = Variable(torch.FloatTensor(q_emb), requires_grad=True)
+        if cuda:
+            d_emb = Variable(torch.FloatTensor(d_emb).cuda(), requires_grad=True)
+            q_emb = Variable(torch.FloatTensor(q_emb).cuda(), requires_grad=True)
+        else:
+            d_emb = Variable(torch.FloatTensor(d_emb), requires_grad=True)
+            q_emb = Variable(torch.FloatTensor(q_emb), requires_grad=True)
         
         d_hidden = self.init_hidden()
         q_hidden = self.init_hidden()
@@ -62,13 +69,19 @@ class Net(nn.Module):
         o = torch.sum(d_gru_out * sim, dim=0)
         
         ol = self.lin(o)
-        dummy = Variable(torch.FloatTensor([float('-inf')] * self.entity_dim))
+        if cuda:
+            dummy = Variable(torch.FloatTensor([float('-inf')] * self.entity_dim).cuda())
+        else:
+            dummy = Variable(torch.FloatTensor([float('-inf')] * self.entity_dim).cuda())
         ol2 = torch.cat((ol.view(-1,1), dummy.view(-1,1)), dim=1)
         d_ent_idx = set(list(filter(lambda x: x, 
                                 [self.entity_dict.get(dw, None)
                                  for dw in d_words])))
         o_idx = [0 if i in d_ent_idx else 1 for i in range(self.entity_dim)]
-        o = ol2.gather(1, Variable(torch.Tensor(o_idx).long().view(-1,1)))
+        if cuda:
+            o = ol2.gather(1, Variable(torch.Tensor(o_idx).cuda().long().view(-1,1)))
+        else:
+            o = ol2.gather(1, Variable(torch.Tensor(o_idx).long().view(-1,1)))
         
         return F.log_softmax(o, dim=0)
 
@@ -101,6 +114,8 @@ def main():
     torch.manual_seed(42)
 
     net = Net(word_dict, entity_dict, embeddings, embedding_size, hidden_dim)
+    if cuda: 
+        net.cuda()
     loss_function = nn.NLLLoss()
     optimizer = optim.SGD(net.parameters(), lr=lr)
     #optimizer = optim.Adam(net.parameters(), lr=0.1)
@@ -110,9 +125,13 @@ def main():
     for i,d,q,a in zip(range(len(train_a)), train_d, train_q, train_a):
         net.zero_grad()
         log_probs = net(d, q)
-        target = Variable(torch.LongTensor([entity_dict[a]]))
+        if cuda:
+            target = Variable(torch.LongTensor([entity_dict[a]]).cuda())
+        else:
+            target = Variable(torch.LongTensor([entity_dict[a]]))
+        if cuda: target.cuda()
         loss = loss_function(log_probs.view(1,-1), target)
-        losses.append(loss.data.numpy().tolist()[0])
+        losses.append(loss.cpu().data.numpy().tolist()[0])
         loss.backward()
         torch.nn.utils.clip_grad_norm(net.parameters(), 1)
         optimizer.step()
@@ -125,4 +144,5 @@ def main():
 
 if __name__ == '__main__':
     print('start')
+    print('using gpu: {}'.format(cuda))
     main()
