@@ -89,8 +89,9 @@ class Net(nn.Module):
 def main():
     fin_train = 'data/cnn/train.txt'
     fin_dev = 'data/cnn/dev.txt'
-    sz_train = 100
-    sz_dev = 100
+    sz_train = None
+    sz_dev = 1000
+    sz_test = 5000
     embedding_size = 50
     hidden_dim = 5
     lr = 0.05
@@ -139,7 +140,18 @@ def main():
         if i % 50 == 0:
             print('COUNT {}, Loss: {}'.format(i, losses[-1]))
     plt.plot(range(len(losses)), losses)
-    plt.savefig('loss-lr{}-trainsz{}-embsz{}-hidsz{}.png'.format(lr, sz_train, embedding_size, hidden_dim))
+    plt.savefig('tmp-pic-repo/loss-lr{}-trainsz{}-embsz{}-hidsz{}.png'.format(lr, sz_train, embedding_size, hidden_dim))
+
+    acc = 0
+    for i,d,q,a in zip(range(len(train_a)), train_d, train_q, train_a):
+        if i >= sz_test:
+            break
+            
+        log_probs = net(d, q)
+        target = entity_dict[a]
+        _, idx = torch.max(log_probs, 0)
+        acc += (idx.cpu().data.numpy().tolist()[0]) == target
+    print('acc: {}'.format(float(acc)/sz_test))
 
 
 if __name__ == '__main__':
