@@ -89,13 +89,14 @@ class Net(nn.Module):
 def main():
     fin_train = 'data/cnn/train.txt'
     fin_dev = 'data/cnn/dev.txt'
-    sz_train = 50000
+    sz_train = 20000
     sz_dev = 1000
     sz_test = 5000
-    embedding_size = 50
+    embedding_size = 100
     hidden_dim = 128
     lr = 0.05
-    momentum = 0.0
+    momentum = 0.7
+    epoch = 3
 
     print('*' * 10 + ' Train Loading')
     train_d, train_q, train_a = load_data(fin_train, sz_train, relabeling=True)
@@ -124,22 +125,23 @@ def main():
 
     losses = list()
     cnt = 0
-    for i,d,q,a in zip(range(len(train_a)), train_d, train_q, train_a):
-        net.zero_grad()
-        log_probs = net(d, q)
-        if cuda:
-            target = Variable(torch.LongTensor([entity_dict[a]]).cuda())
-        else:
-            target = Variable(torch.LongTensor([entity_dict[a]]))
-        if cuda: target.cuda()
-        loss = loss_function(log_probs.view(1,-1), target)
-        losses.append(loss.cpu().data.numpy().tolist()[0])
-        loss.backward()
-        torch.nn.utils.clip_grad_norm(net.parameters(), 1)
-        optimizer.step()
-        
-        if i % 50 == 0:
-            print('COUNT {}, Loss: {}'.format(i, losses[-1]))
+    for ep in range(epoch):
+        for i,d,q,a in zip(range(len(train_a)), train_d, train_q, train_a):
+            net.zero_grad()
+            log_probs = net(d, q)
+            if cuda:
+                target = Variable(torch.LongTensor([entity_dict[a]]).cuda())
+            else:
+                target = Variable(torch.LongTensor([entity_dict[a]]))
+            if cuda: target.cuda()
+            loss = loss_function(log_probs.view(1,-1), target)
+            losses.append(loss.cpu().data.numpy().tolist()[0])
+            loss.backward()
+            torch.nn.utils.clip_grad_norm(net.parameters(), 1)
+            optimizer.step()
+            
+            if i % 50 == 0:
+                print('EPOCH {} COUNT {}, Loss: {}'.format(ep, i, losses[-1]))
     plt.plot(range(len(losses)), losses)
     plt.savefig('tmp-pic-repo/loss-lr{}-momentum{}-trainsz{}-embsz{}-hidsz{}.png'.format(lr, momentum, sz_train, embedding_size, hidden_dim))
     #plt.savefig('tmp-pic-repo/loss-Adamlr{}-trainsz{}-embsz{}-hidsz{}.png'.format(lr, sz_train, embedding_size, hidden_dim))
@@ -153,7 +155,7 @@ def main():
         target = entity_dict[a]
         _, idx = torch.max(log_probs, 0)
         acc += (idx.cpu().data.numpy().tolist()[0]) == target
-    print('acc: {}'.format(float(acc)/sz_test))
+    print('acc-lr{}-momentum{}-trainsz{}-embsz{}-hidsz{}: {}'.format(lr, momentum, sz_train, embedding_size, hidden_dim, float(acc)/sz_test))
 
 
 if __name__ == '__main__':
