@@ -89,12 +89,13 @@ class Net(nn.Module):
 def main():
     fin_train = 'data/cnn/train.txt'
     fin_dev = 'data/cnn/dev.txt'
-    sz_train = None
+    sz_train = 50000
     sz_dev = 1000
     sz_test = 5000
     embedding_size = 50
-    hidden_dim = 5
+    hidden_dim = 128
     lr = 0.05
+    momentum = 0.0
 
     print('*' * 10 + ' Train Loading')
     train_d, train_q, train_a = load_data(fin_train, sz_train, relabeling=True)
@@ -118,8 +119,8 @@ def main():
     if cuda: 
         net.cuda()
     loss_function = nn.NLLLoss()
-    optimizer = optim.SGD(net.parameters(), lr=lr)
-    #optimizer = optim.Adam(net.parameters(), lr=0.1)
+    optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
+    #optimizer = optim.Adam(net.parameters(), lr=lr)
 
     losses = list()
     cnt = 0
@@ -140,7 +141,8 @@ def main():
         if i % 50 == 0:
             print('COUNT {}, Loss: {}'.format(i, losses[-1]))
     plt.plot(range(len(losses)), losses)
-    plt.savefig('tmp-pic-repo/loss-lr{}-trainsz{}-embsz{}-hidsz{}.png'.format(lr, sz_train, embedding_size, hidden_dim))
+    plt.savefig('tmp-pic-repo/loss-lr{}-momentum{}-trainsz{}-embsz{}-hidsz{}.png'.format(lr, momentum, sz_train, embedding_size, hidden_dim))
+    #plt.savefig('tmp-pic-repo/loss-Adamlr{}-trainsz{}-embsz{}-hidsz{}.png'.format(lr, sz_train, embedding_size, hidden_dim))
 
     acc = 0
     for i,d,q,a in zip(range(len(train_a)), train_d, train_q, train_a):
